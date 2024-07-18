@@ -1,4 +1,3 @@
-
 """
 Permissions for the instructor dashboard and associated actions
 """
