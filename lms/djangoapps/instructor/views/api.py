@@ -120,7 +120,7 @@ from openedx.core.djangoapps.django_comment_common.models import (
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.user_api.preferences.api import get_user_preference
 from openedx.core.djangolib.markup import HTML, Text
-from openedx.core.lib.api.authentication import BearerAuthentication, BearerAuthenticationAllowInactiveUser
+from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, view_auth_classes
 from openedx.core.lib.courses import get_course_by_id
 from openedx.core.lib.api.serializers import CourseKeyField
@@ -1779,12 +1779,16 @@ class StudentProgressUrl(APIView):
         'progress_url': '/../...'
     }
     """
-    authentication_classes = (JwtAuthentication, BearerAuthentication, SessionAuthentication)
-    permission_classes = (IsAuthenticated,)
+    authentication_classes = (
+        JwtAuthentication,
+        BearerAuthenticationAllowInactiveUser,
+        SessionAuthenticationAllowInactiveUser,
+    )
+    permission_classes = (IsAuthenticated, permissions.InstructorPermission)
     serializer_class = StudentProgressUrlSerializer
+    permission_name = permissions.ENROLLMENT_REPORT
 
     @method_decorator(ensure_csrf_cookie)
-    @verify_course_permission(permissions.ENROLLMENT_REPORT)
     def post(self, request, course_id):
         """Post method for validating incoming data and generating progress URL"""
         data = {
