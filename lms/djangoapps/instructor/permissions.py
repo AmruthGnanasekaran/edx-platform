@@ -79,8 +79,9 @@ perms[VIEW_FORUM_MEMBERS] = HasAccessRule('staff')
 
 class InstructorPermission(BasePermission):
     """
-    Generic permission class.
-    it will pick the permission name from the view.
+    Custom permission class for verifying user permissions on a specific course.
+    This permission class checks if the user has a specific permission associated
+    with a course. The permission name is expected to be an attribute of the view.
     """
     def has_permission(self, request, view):
         course = get_course_by_id(CourseKey.from_string(view.kwargs.get('course_id')))
