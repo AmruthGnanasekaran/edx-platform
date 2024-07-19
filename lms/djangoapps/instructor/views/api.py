@@ -294,6 +294,7 @@ class RegisterAndEnrollStudents(APIView):
     )
     permission_classes = (IsAuthenticated, permissions.InstructorPermission)
     permission_name = permissions.CAN_ENROLL
+
     @method_decorator(ensure_csrf_cookie)
     def post(self, request, course_id):  # pylint: disable=too-many-statements
         """
