@@ -38,7 +38,6 @@ from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey, UsageKey
 from openedx.core.djangoapps.course_groups.cohorts import get_cohort_by_name
 from rest_framework import serializers, status  # lint-amnesty, pylint: disable=wrong-import-order
-from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAdminUser, IsAuthenticated  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.response import Response  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.views import APIView  # lint-amnesty, pylint: disable=wrong-import-order
@@ -120,9 +119,10 @@ from openedx.core.djangoapps.django_comment_common.models import (
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.user_api.preferences.api import get_user_preference
 from openedx.core.djangolib.markup import HTML, Text
-from openedx.core.lib.api.authentication import BearerAuthentication, BearerAuthenticationAllowInactiveUser
+from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, view_auth_classes
 from openedx.core.lib.courses import get_course_by_id
+from openedx.core.lib.api.serializers import CourseKeyField
 from openedx.features.course_experience.url_helpers import get_learning_mfe_home_url
 from .tools import (
     dump_block_extensions,
@@ -232,30 +232,6 @@ def require_course_permission(permission):
     return decorator
 
 
-def verify_course_permission(permission):
-    """
-        Decorator with argument that requires a specific permission of the requesting
-        user. If the requirement is not satisfied, returns an
-        HttpResponseForbidden (403).
-        Assumes that request is in self.
-        Assumes that course_id is in kwargs['course_id'].
-        """
-
-    def decorator(func):
-        def wrapped(self, *args, **kwargs):
-            request = self.request
-            course = get_course_by_id(CourseKey.from_string(kwargs['course_id']))
-
-            if request.user.has_perm(permission, course):
-                return func(self, *args, **kwargs)
-            else:
-                return HttpResponseForbidden()
-
-        return wrapped
-
-    return decorator
-
-
 def require_sales_admin(func):
     """
     Decorator for checking sales administrator access before executing an HTTP endpoint. This decorator
@@ -311,11 +287,14 @@ class RegisterAndEnrollStudents(APIView):
     """
     Create new account and Enroll students in this course.
     """
-    authentication_classes = (JwtAuthentication, BearerAuthentication, SessionAuthentication)
-    permission_classes = (IsAuthenticated,)
-
+    authentication_classes = (
+        JwtAuthentication,
+        BearerAuthenticationAllowInactiveUser,
+        SessionAuthenticationAllowInactiveUser,
+    )
+    permission_classes = (IsAuthenticated, permissions.InstructorPermission)
+    permission_name = permissions.CAN_ENROLL
     @method_decorator(ensure_csrf_cookie)
-    @verify_course_permission(permissions.CAN_ENROLL)
     def post(self, request, course_id):  # pylint: disable=too-many-statements
         """
         Create new account and Enroll students in this course.
@@ -376,7 +355,8 @@ class RegisterAndEnrollStudents(APIView):
                     general_errors.append({
                         'username': '', 'email': '',
                         'response': _(
-                            'Make sure that the file you upload is in CSV format with no extraneous characters or rows.')
+                            'Make sure that the file you upload is in CSV format with no '
+                            'extraneous characters or rows.')
                     })
 
             except Exception:  # pylint: disable=broad-except
@@ -583,7 +563,8 @@ class RegisterAndEnrollStudents(APIView):
                                 add_user_to_cohort(cohort, email)
                             except ValueError:
                                 # user already in this cohort; ignore
-                                # NOTE: Checking this here may be unnecessary if we can prove that a new user will never be
+                                # NOTE: Checking this here may be unnecessary if we can prove that a
+                                # new user will never be
                                 # automatically assigned to a cohort from the above.
                                 pass
                             except ValidationError:
